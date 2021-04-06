@@ -8,21 +8,17 @@ Actually, sunfs is a reimplement of simfs[1]. I use an easier way to implement f
 
 After I finished sunfs, I did some tests like cache & tlb misses, read & write throughput with other file system(ramfs, tmpfs, pmfs[2] ... ) . Here is some tests:
 
+randread\
 ![randread](https://github.com/BlackWaters/sunfs/blob/main/results/randread.png  "randread")
 
-<center>randread</center>
-
+randwrite\
 ![randwrite](https://github.com/BlackWaters/sunfs/blob/main/results/randwrite.png "randwrite")
 
-<center>randwrite</center>
-
+seqread\
 ![seqread](https://github.com/BlackWaters/sunfs/blob/main/results/seqread.png "seqread")
 
-<center>seqread</center>
-
+seqwrite\
 ![seqwrite](https://github.com/BlackWaters/sunfs/blob/main/results/seqwrite.png "seqwrite")
-
-<center>seqwrite</center>
 
 Ruinan \
 Bye bye UESTC.\
