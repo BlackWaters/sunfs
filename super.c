@@ -15,110 +15,16 @@
 #include "sunfs.h"
 #include "file.h"
 #include "sunfs_buddysystem.h"
+#include "inode.h"
 
-const struct inode_operations sunfs_inode_file_ops;
-const struct inode_operations sunfs_dir_ops;
-const struct file_operations sunfs_file_ops;
-struct inode *sunfs_alloc_inode(struct super_block *sb);
-void sunfs_drop_inode(struct inode *inode);
-
-static const struct address_space_operations sunfs_aops =
-    {
-        .readpage = simple_readpage,
-        .write_begin = simple_write_begin,
-        .write_end = simple_write_end,
-};
-
-struct inode *sunfs_get_inode(struct super_block *sb, const struct inode *dir, umode_t mode, dev_t dev)
+void get_sunfs_superblock(struct super_block *sb)
 {
-    struct inode *inode = new_inode(sb);
-
-    if (inode)
-    {
-        inode->i_ino = get_next_ino();
-        INIT_LIST_HEAD(&inode->i_lru);
-        inode_init_owner(inode, dir, mode);
-        inode->i_mapping->a_ops = &sunfs_aops;
-        //mapping_set_gfp_mask(inode->i_mapping, GFP_HIGHUSER);
-        //mapping_set_unevictable(inode->i_mapping);
-        inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
-        switch (mode & S_IFMT)
-        {
-        default:
-            init_special_inode(inode, mode, dev);
-            break;
-        case S_IFREG:
-            inode->i_op = &sunfs_inode_file_ops;
-            inode->i_fop = &sunfs_file_ops;
-            break;
-        case S_IFDIR:
-            inode->i_op = &sunfs_dir_ops;
-            inode->i_fop = &simple_dir_operations;
-            inc_nlink(inode);
-            break;
-        case S_IFLNK:
-            break;
-        }
-    }
-    return inode;
+    struct sunfs_super_block *p_sunfs_sb=__va(PADDR_START);
+    
+    sb->s_maxbytes = MAX_LFS_FILESIZE;
+    sb->s_blocksize = le32_to_cpu(p_sunfs_sb->s_blocksize);
+    sb->s_blocksize_bits = PAGE_SHIFT;
 }
-
-int sunfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev)
-{
-    struct inode *inode = sunfs_get_inode(dir->i_sb, dir, mode, dev);
-    int error = -ENOSPC;
-    if (inode)
-    {
-        d_instantiate(dentry, inode);
-        dget(dentry);
-        error = 0;
-        dir->i_mtime = dir->i_ctime = current_time(dir);
-    }
-    return error;
-}
-
-int sunfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
-{
-    printk("Try to mkdir__by sunfs.\n");
-    int error = sunfs_mknod(dir, dentry, mode | S_IFDIR, 0);
-    if (!error)
-        inc_nlink(dir);
-    return error;
-}
-
-int sunfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool excl)
-{
-    printk("Try to create a file__by sunfs.\n");
-    return sunfs_mknod(dir, dentry, mode | S_IFREG, 0);
-}
-
-const struct file_operations sunfs_file_ops =
-    {
-        .read = sunfs_file_read,
-        .write = sunfs_file_write,
-        .read_iter = generic_file_read_iter,
-        .write_iter = generic_file_write_iter,
-        .mmap = generic_file_mmap,
-        .llseek = generic_file_llseek,
-};
-
-const struct inode_operations sunfs_inode_file_ops =
-    {
-        .setattr = simple_setattr,
-        .getattr = simple_getattr,
-};
-
-const struct inode_operations sunfs_dir_ops =
-    {
-        .create = sunfs_create,
-        .lookup = simple_lookup,
-        .link = simple_link,
-        .unlink = simple_unlink,
-        .mkdir = sunfs_mkdir,
-        .mknod = sunfs_mknod,
-        .rmdir = simple_rmdir,
-        .rename = simple_rename,
-};
 
 static struct super_operations sunfs_ops =
     {
@@ -127,14 +33,24 @@ static struct super_operations sunfs_ops =
         .destroy_inode = sunfs_drop_inode,
 };
 
+struct inode *sunfs_iget()
+{
+
+}
+
+void 
+
 int sunfs_fill_super(struct super_block *sb, void *data, int silent)
 {
     struct inode *root;
     int err;
-
+#ifdef DIRECTSET
     sb->s_maxbytes = MAX_LFS_FILESIZE;
     sb->s_blocksize = PAGE_SIZE;
     sb->s_blocksize_bits = PAGE_SHIFT;
+#else
+    get_sunfs_superblock(sb);
+#endif
     sb->s_op = &sunfs_ops;
 
     printk("Make the root of sunfs.\n");
