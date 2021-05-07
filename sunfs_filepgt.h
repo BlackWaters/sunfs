@@ -1,6 +1,7 @@
 #ifndef SUNFS_FILEPGT_H
 #define SUNFS_FILEPGT_H
 #include "sunfs.h"
+#include "sunfs_buddysystem.h"
 
 unsigned long *InitFirstPage(void);
 fpmd_t *fpmd_offset(fpmd_t *fpmd, unsigned long offset);

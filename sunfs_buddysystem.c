@@ -11,7 +11,8 @@ unsigned int getpagenum(struct sunfs_page *page)
 {
     unsigned long vaddr = page->vaddr;
     unsigned int order = page->order;
-    return (unsigned int)(__pa(vaddr) - PADDR_START) >> (order + SUNFS_PAGESHIFT);
+    // we get page from DATAZONE
+    return (unsigned int)(__pa(vaddr) - DATAZONE_START) >> (order + SUNFS_PAGESHIFT);
 }
 
 // must be called with buddy_lock hold!!
@@ -38,7 +39,7 @@ static inline bool Find_buddy(struct sunfs_page *p)
 
 void ShowFullBuddyList(void)
 {
-	printk(KERN_ALERT "***\n");
+    printk(KERN_ALERT "***\n");
     mutex_lock(&buddy_lock);
     unsigned int cur = 0;
     for (; cur <= 10; cur++)
@@ -55,7 +56,7 @@ void ShowFullBuddyList(void)
             printk("%lx %u %u\n", p->vaddr, p->order, p->num);
         }
     }
-	printk(KERN_ALERT "***\n");
+    printk(KERN_ALERT "***\n");
     mutex_unlock(&buddy_lock);
     return;
 }
@@ -69,21 +70,37 @@ bool Buddysystem_init(void)
         INIT_LIST_HEAD(buddy_base + i);
         //printk("%lx\n",buddy_base+i);
     }
-    unsigned long vaddr = __va(PADDR_START);
+    unsigned long vaddr = __va(DATAZONE_START);
     unsigned long PAGE_4M = ((unsigned long)1 << 22);
-    for (; vaddr <= __va(PADDR_END); vaddr += PAGE_4M)
+    unsigned long PAGE_4K = ((unsigned long)1 << 12);
+    unsigned long PAGE_NOW = PAGE_4M;
+    unsigned long order = 10;
+    while (vaddr != __va(LOGZONE_START))
     {
-        struct sunfs_page *p = kmalloc(sizeof(struct sunfs_page), GFP_KERNEL);
-        if (p == NULL)
+        if (vaddr > __va(LOGZONE_START))
         {
-            printk("kmalloc error!\n");
-            return 0;
+            if (order == 0)
+                return 0; // error! we can't init buddy system because page is not alligned with 4K!
+            // reset vaddr
+            vaddr -= PAGE_NOW;
+            PAGE_NOW >>= 1;
+            order--;
         }
-        p->vaddr = vaddr;
-        p->order = 10;
-        p->num = getpagenum(p);
-        INIT_LIST_HEAD(&p->list);
-        list_add(&p->list, &buddy_base[10]);
+
+        for (; vaddr < __va(LOGZONE_START); vaddr += PAGE_NOW)
+        {
+            struct sunfs_page *p = kmalloc(sizeof(struct sunfs_page), GFP_KERNEL);
+            if (p == NULL)
+            {
+                printk("kmalloc error!\n");
+                return 0;
+            }
+            p->vaddr = vaddr;
+            p->order = order;
+            p->num = getpagenum(p);
+            INIT_LIST_HEAD(&p->list);
+            list_add(&p->list, &buddy_base[order]);
+        }
     }
     return 1;
 }
@@ -123,6 +140,7 @@ found:;
     }
 find_out:
     mutex_unlock(&buddy_lock);
+    ZeroFilePage(p); // Zeroing this page before we alloc it.
     return p;
     //must free this node!
 }
@@ -147,7 +165,8 @@ void sunfs_freepage(unsigned long vaddr, unsigned int order)
         }
         cur++;
     }
-    if (cur==10) list_add(&p->list, &buddy_base[p->order]);
+    if (cur == 10)
+        list_add(&p->list, &buddy_base[p->order]);
     mutex_unlock(&buddy_lock);
     return;
 }

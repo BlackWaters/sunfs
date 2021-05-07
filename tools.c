@@ -48,6 +48,8 @@ void testFunction()
         printk("It is same.\n");
     else
         printk("It is not same!\n");
+    printk("sunfs_super_block size is %d.\n",sizeof(struct sunfs_super_block));
+    printk("sunfs_inode size is %d.\n",sizeof(struct sunfs_inode));
     /* test for buddy system
     ShowFullBuddyList();
     struct sunfs_page *p=sunfs_getpage(0);

@@ -1,8 +1,11 @@
 #include <iostream>
 #include <cstring>
 #include <cstdio>
-#include <linux/fs.h>
-
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mount.h>
+#include <errno.h>
+#include <sys/types.h>
 using namespace std;
 
 int main()
