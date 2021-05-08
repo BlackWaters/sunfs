@@ -16,10 +16,16 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/module.h>
+#include <linux/rbtree.h>
 #include "sunfs.h"
 #include "sunfs_filepgt.h"
 #include "file.h"
 
+struct sunfs_inotree
+{
+    struct rb_node node;
+    unsigned int l,r;  // [l,r] is a range for this inode table
+};
 
 struct inode *sunfs_alloc_inode(struct super_block *sb);
 void sunfs_drop_inode(struct inode *inode);
@@ -32,14 +38,12 @@ struct inode *sunfs_iget(struct super_block *sb, unsigned int ino);
 struct inode *sunfs_new_inode(struct super_block *sb, const struct inode *dir, umode_t mode, dev_t dev);
 void sunfs_update_inode(struct inode *inode, struct sunfs_inode *si);
 void sunfs_update_time(struct inode *inode);
-
-struct sunfs_inode_table
-{
-    struct rb_node node;
-    unsigned int l,r;  // [l,r] is a range for this inode table
-};
-extern struct rb_root sunfs_inode_table_root;
-
+bool inotree_seg_cross(const struct sunfs_inotree *a, const struct sunfs_inotree *b);
+bool sunfs_inode_table_insert(struct rb_root *, struct sunfs_inotree *);
+int sunfs_get_newino(void);
+bool sunfs_inode_table_init(void);
+bool sunfs_free_ino(unsigned int l,unsigned int r);
+void sunfs_free_inode(struct sunfs_inode *si);
 
 
 

@@ -8,7 +8,7 @@
 #define PADDR_END 0x13fffffff
 #define INODEZONE_START (PADDR_START + 64)                                  //first 64 bytes is super_block
 #define DATAZONE_START (INODEZONE_START + ((unsigned long)1 << 23))         //8M inode zone
-#define LOGZONE_START (PADDR_END + 1 - ((unsigned long)1 << 22))            //last 2M for log zone
+#define LOGZONE_START (PADDR_END + 1 - ((unsigned long)1 << 21))            //last 2M for log zone
 #define SUNFS_PAGESHIFT 12
 #define SUNFS_PAGESIZE ((unsigned long)1 << SUNFS_PAGESHIFT)
 #define SUNFS_PAGEMASK (SUNFS_PAGESIZE - 1)
@@ -30,7 +30,11 @@ struct sunfs_inode_info
 {
     struct inode vfs_inode;
     fpmd_t *fpmd;
-    unsigned int num_pages;
+    /*
+     *  This paramater is defined as number of pages alloced.
+     *  Note: for dir_inode, num_pages is set to 0, but it has one pmd for save dentry data.
+     */
+    unsigned int num_pages;  
     unsigned int ino;
 };
 

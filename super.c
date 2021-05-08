@@ -13,8 +13,7 @@ void get_sunfs_superblock(struct super_block *sb)
     sb->s_blocksize_bits = PAGE_SHIFT;
 }
 
-static struct super_operations sunfs_ops =
-{
+static struct super_operations sunfs_ops = {
     .alloc_inode = sunfs_alloc_inode,
     .statfs = simple_statfs,
     .destroy_inode = sunfs_drop_inode,
@@ -27,6 +26,11 @@ static struct super_operations sunfs_ops =
  */
 bool sunfs_init(void)
 {
+    memset((void *)__va(PADDR_START), 0, 64);
+    memset((void *)__va(INODEZONE_START), 0, sizeof(struct sunfs_inode) * ((unsigned int)1 << 17));
+    memset((void *)__va(LOGZONE_START), 0, (unsigned int)1 << 21);
+    // We do not memset data zone because before we clear pages before we alloc them.
+
     struct sunfs_super_block *super;
     struct sunfs_inode *root;
 
@@ -47,7 +51,7 @@ bool sunfs_init(void)
     root->i_size = cpu_to_le64(0);
     root->i_uid = cpu_to_le32(from_kuid(&init_user_ns, current_fsuid()));
     root->i_gid = cpu_to_le32(from_kgid(&init_user_ns, current_fsgid()));
-    root->i_mode = cpu_to_le16(S_IFDIR);
+    root->i_mode = cpu_to_le16(S_IFDIR | 0755);
     root->i_atime = root->i_ctime = cpu_to_le32(get_seconds());
 
     root->pre_logitem = cpu_to_le64(0);
@@ -80,7 +84,8 @@ int sunfs_fill_super(struct super_block *sb, void *data, int silent)
     sb->s_blocksize_bits = PAGE_SHIFT;
 #endif
     sb->s_op = &sunfs_ops;
-
+    
+    sunfs_inode_table_init();
     printk("Make the root of sunfs.\n");
 
     root = sunfs_iget(sb, SUNFS_ROOT_INO);
@@ -121,12 +126,12 @@ void InodeCacheDestroy(void)
 }
 
 static struct file_system_type sunfs_type =
-{
-    .owner = THIS_MODULE,
-    .name = "sun_fs",
-    .mount = sunfs_mount,
-    .kill_sb = kill_litter_super,
-    //.fs_flags   =   FS_USERNS_MOUNT,
+    {
+        .owner = THIS_MODULE,
+        .name = "sun_fs",
+        .mount = sunfs_mount,
+        .kill_sb = kill_litter_super,
+        //.fs_flags   =   FS_USERNS_MOUNT,
 };
 
 static int __init init_sunfs(void)
