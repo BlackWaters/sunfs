@@ -563,7 +563,7 @@ ssize_t sunfs_file_write(
         unsigned long logsize = le64_to_cpu(si->i_size);
         
 
-        memcpy(/*(void *)(pg->vaddr + (1 << pg->order) * SUNFS_PAGESIZE) - SUNFS_PAGESIZE +*/ offset_inpg(*ppos - 1) + 1, (void *)start_vaddr, SUNFS_PAGESIZE - (offset_inpg(*ppos - 1) + 1));
+        memcpy(/*(void *)(pg->vaddr + (1 << pg->order) * SUNFS_PAGESIZE) - SUNFS_PAGESIZE +*/` offset_inpg(*ppos - 1) + 1, (void *)start_vaddr, SUNFS_PAGESIZE - (offset_inpg(*ppos - 1) + 1));
     }
 
     //Try to replace file page
