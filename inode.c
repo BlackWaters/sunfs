@@ -103,6 +103,7 @@ fail:
 
 /*
  *  Read sunfs_inode, and use it to update vfs_inode
+ *  Need add PMD update here!!!
  */
 unsigned int sunfs_read_inode(struct inode *inode, struct sunfs_inode *si)
 {
@@ -139,6 +140,7 @@ unsigned int sunfs_read_inode(struct inode *inode, struct sunfs_inode *si)
 
 struct inode *sunfs_new_inode(struct super_block *sb, const struct inode *dir, umode_t mode, dev_t dev)
 {
+    int err;
     struct inode *inode = new_inode(sb);
     if (!inode)
         return ERR_PTR(-ENOMEM);
@@ -176,33 +178,43 @@ struct inode *sunfs_new_inode(struct super_block *sb, const struct inode *dir, u
     if (ino == -1)
     {
         printk("Can not get ino!\n");
-        return ERR_PTR(-ENOMEM);
+        err = -ENOMEM;
+        goto Fail;
     }
     // update inode->i_ino
     inode->i_ino = ino;
     si = sunfs_get_inode(ino);
     if (!si)
-        return ERR_PTR(-ENOMEM);
+    {
+        printk("ino is wrong!\n");
+        err = -ENOMEM;
+        goto Fail;
+    }
 
     // For data node, we can alloc file page until we need it.
     if ((mode & S_IFMT) == S_IFREG)
         goto Update;
 
     struct sunfs_page *pg;
-    pg = sunfs_getpage(0);
-    if (!pg)
-    {
-        printk("We can not alloc page!\n");
-        return ERR_PTR(-ENOMEM);
-    }
+
     info = SUNFS_INIFO(inode);
     if (!info)
     {
         printk("We can not get sunfs_indo_info!\n");
-        return ERR_PTR(-ENOMEM);
+        err = -ENOMEM;
+        goto Fail;
     }
+    /*
+    pg = sunfs_getpage(0);
+    if (!pg)
+    {
+        printk("We can not alloc page!\n");
+        err = -ENOMEM;
+        goto Fail;
+    }
+    */
     // new alloc page, update related var
-    info->fpmd = pg->vaddr;
+    info->fpmd = sunfs_get_onepage();
     si->ptr_PMD = cpu_to_le64(info->fpmd);
     kfree(pg);
 Update:
@@ -210,6 +222,9 @@ Update:
     si->active = 1;
     sunfs_update_inode(inode, si);
     return inode;
+Fail:
+    iput(inode);
+    return ERR_PTR(err);
 }
 
 void sunfs_free_inode(struct sunfs_inode *si)

@@ -18,5 +18,6 @@ bool Buddysystem_init(void);
 struct sunfs_page *sunfs_getpage(unsigned int order);
 void sunfs_freepage(unsigned long vaddr, unsigned int order);
 void ZeroFilePage(struct sunfs_page *pg);
+unsigned long sunfs_get_onepage(void);
 
 #endif

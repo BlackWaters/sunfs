@@ -34,4 +34,6 @@ unsigned long SetPte(
     unsigned long paddr_start,
     unsigned long paddr_end);
 
+void print_for_each_vma(struct mm_struct *mm);
+
 #endif

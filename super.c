@@ -39,7 +39,7 @@ bool sunfs_init(void)
 
     // init sunfs_super_block
     super->s_blocksize = cpu_to_le32(1 << 12);
-    super->free_inode = cpu_to_le32(1 << 18);
+    super->free_inode = cpu_to_le32(1 << 17);
     super->s_magic = cpu_to_le32(SUNFS_SUPER_MAGIC); // actually I don't know what is MAGIC now.
 
     super->StartADDR = cpu_to_le64(__va(PADDR_START));
@@ -138,7 +138,8 @@ static int __init init_sunfs(void)
 {
     //Init sunfs
     InitPageTableForSunfs(PADDR_START, PADDR_END);
-    Buddysystem_init();
+    if (!Buddysystem_init())
+        printk("Buddy system init error!\n");
     InodeCacheInit();
     int err;
     printk("ready to register sunfs.\n");

@@ -45,7 +45,7 @@ void append_pages(struct sunfs_inode_info *info, unsigned int page_num)
     unsigned int num = info->num_pages;
     if (!info->fpmd)
     {
-        info->fpmd = get_zeroed_page(GFP_KERNEL);
+        info->fpmd = sunfs_get_onepage();
         if (!info->fpmd)
         {
             printk("Can not alloc fpmd!");
@@ -65,7 +65,7 @@ void append_pages(struct sunfs_inode_info *info, unsigned int page_num)
         fpmd = fpmd_offset(info->fpmd, offset);
         if (!*fpmd)
         {
-            fpte_t *fpte = get_zeroed_page(GFP_KERNEL);
+            fpte_t *fpte = sunfs_get_onepage();
             if (!fpte)
             {
                 printk("Can not alloc fpte!");
@@ -106,13 +106,13 @@ void delete_pages(struct sunfs_inode_info *info)
                     info->num_pages--;
                 }
             }
-            free_page(*fpmd); // free original fpte
+            sunfs_freepage(*fpmd,0); // free original fpte
         }
         else
             break;
     }
     if (info->fpmd)
-        free_page(info->fpmd);
+        sunfs_freepage(info->fpmd,0);
 out:
     if (info->num_pages)
         printk("delete pages error!");

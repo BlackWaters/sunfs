@@ -1,6 +1,8 @@
 #include "tools.h"
+#include <linux/mm_types.h>
 #include "sunfs_buddysystem.h"
 #include "sunfs.h"
+#include "log.h"
 
 unsigned long InitPageTableForSunfs(
     unsigned long paddr_start,
@@ -11,33 +13,36 @@ unsigned long InitPageTableForSunfs(
 
 void Testmemset(void)
 {
-    unsigned long i=PADDR_START;
-    for (;i<PADDR_START+3*SUNFS_PAGESIZE;i++)
+    unsigned long i = PADDR_START;
+    for (; i < PADDR_START + 3 * SUNFS_PAGESIZE; i++)
     {
-        char *p=(char *)__va(i);
-        *p='a'; 
-        printk("%c",*p);
+        char *p = (char *)__va(i);
+        *p = 'a';
+        printk("%c", *p);
     }
     printk("Inintiail status.\n");
-    ZeroFilePage(__va(PADDR_START+SUNFS_PAGESIZE));
-    i=PADDR_START;
+    ZeroFilePage(__va(PADDR_START + SUNFS_PAGESIZE));
+    i = PADDR_START;
     printk("First page.\n");
-    for (;i<PADDR_START+SUNFS_PAGESIZE;i++)
+    for (; i < PADDR_START + SUNFS_PAGESIZE; i++)
     {
-        char *p=(char *)__va(i);
-        if (*p==0) printk("error");
+        char *p = (char *)__va(i);
+        if (*p == 0)
+            printk("error");
     }
     printk("Second page.\n");
-    for (;i<PADDR_START+2*SUNFS_PAGESIZE;i++)
+    for (; i < PADDR_START + 2 * SUNFS_PAGESIZE; i++)
     {
-        char *p=(char *)__va(i);
-        if (*p!=0) printk("error");
+        char *p = (char *)__va(i);
+        if (*p != 0)
+            printk("error");
     }
     printk("Third page.\n");
-    for (;i<PADDR_START+3*SUNFS_PAGESIZE;i++)
+    for (; i < PADDR_START + 3 * SUNFS_PAGESIZE; i++)
     {
-        char *p=(char *)__va(i);
-        if (*p==0) printk("error");
+        char *p = (char *)__va(i);
+        if (*p == 0)
+            printk("error");
     }
 }
 
@@ -48,8 +53,10 @@ void testFunction()
         printk("It is same.\n");
     else
         printk("It is not same!\n");
-    printk("sunfs_super_block size is %d.\n",sizeof(struct sunfs_super_block));
-    printk("sunfs_inode size is %d.\n",sizeof(struct sunfs_inode));
+    printk("sunfs_super_block size is %d.\n", sizeof(struct sunfs_super_block));
+    printk("sunfs_inode size is %d.\n", sizeof(struct sunfs_inode));
+    printk("sunfs_log_entry size if %d\n",sizeof(struct sunfs_log_entry));
+    print_for_each_vma(current->mm);
     /* test for buddy system
     ShowFullBuddyList();
     struct sunfs_page *p=sunfs_getpage(0);
@@ -217,3 +224,22 @@ unsigned long SetPte(
     printk("In pte : %d %d\n", cnt1, cnt2);
     return 0;
 }
+
+void print_for_each_vma(struct mm_struct *mm)
+{
+    struct vm_area_struct *vma = NULL, last;
+
+    //vma = find_vma(mm, 0);  //It's the same as vma=mm->mmap
+    vma = mm->mmap;
+    if (!vma)
+    {
+        printk("Can not get vma.\n");
+        return;
+    }
+
+    for (; vma; vma = vma->vm_next)
+        printk(" st: 0x%lx ed: 0x%lx length: 0x%lx\n", vma->vm_start, vma->vm_end, vma->vm_end - vma->vm_start);
+    return;
+}
+
+

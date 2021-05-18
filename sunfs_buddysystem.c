@@ -6,13 +6,14 @@
 
 struct list_head buddy_base[11];
 struct mutex buddy_lock;
+unsigned long BUDDY_SYSTEM_START;
 
 unsigned int getpagenum(struct sunfs_page *page)
 {
     unsigned long vaddr = page->vaddr;
     unsigned int order = page->order;
     // we get page from DATAZONE
-    return (unsigned int)(__pa(vaddr) - DATAZONE_START) >> (order + SUNFS_PAGESHIFT);
+    return (unsigned int)((__pa(vaddr) - BUDDY_SYSTEM_START) >> (order + SUNFS_PAGESHIFT));
 }
 
 // must be called with buddy_lock hold!!
@@ -70,19 +71,38 @@ bool Buddysystem_init(void)
         INIT_LIST_HEAD(buddy_base + i);
         //printk("%lx\n",buddy_base+i);
     }
+    BUDDY_SYSTEM_START = __va(DATAZONE_START);
     unsigned long vaddr = __va(DATAZONE_START);
     unsigned long PAGE_4M = ((unsigned long)1 << 22);
     unsigned long PAGE_4K = ((unsigned long)1 << 12);
     unsigned long PAGE_NOW = PAGE_4M;
     unsigned long order = 10;
+
+    if (LOGZONE_START & SUNFS_PAGEMASK)
+    {
+        printk(KERN_ERR "End virtual address is not aligned with 4K!\n");
+        return 0;
+    }
+
+    // we skip some address, make sure start virtual address is aligned with 4K.
+    if (vaddr & SUNFS_PAGEMASK)
+    {
+        vaddr = (vaddr + SUNFS_PAGESIZE) & (~SUNFS_PAGEMASK);
+        BUDDY_SYSTEM_START = vaddr;
+    }
+
     while (vaddr != __va(LOGZONE_START))
     {
-        if (vaddr > __va(LOGZONE_START))
+        /* 
+         * Note: we are READY to init page from vaddr to vaddr + PAGE_NOW
+         * [vaddr, vaddr + PAGE_NOW)
+         * Check this page is correct before init.
+         */
+        while (vaddr + PAGE_NOW > __va(LOGZONE_START))
         {
             if (order == 0)
                 return 0; // error! we can't init buddy system because page is not alligned with 4K!
             // reset vaddr
-            vaddr -= PAGE_NOW;
             PAGE_NOW >>= 1;
             order--;
         }
@@ -176,4 +196,21 @@ void ZeroFilePage(struct sunfs_page *pg)
 {
     memset((void *)pg->vaddr, 0, (1 << pg->order) * SUNFS_PAGESIZE);
     return;
+}
+
+// get one page and return virtual address.
+unsigned long sunfs_get_onepage(void)
+{
+    struct sunfs_page *pg;
+    unsigned long ret;
+
+    pg = sunfs_getpage(0);
+    if (!pg)
+    {
+        printk("Can not alloc page for sunfs!\n");
+        return 0;
+    }
+    ret = pg->vaddr;
+    kfree(pg);
+    return ret;
 }
