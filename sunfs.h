@@ -31,13 +31,17 @@ typedef unsigned long fpte_t;
 struct sunfs_inode_info
 {
     struct inode vfs_inode;
-    fpmd_t *fpmd;  // bug!: evrey place we load/store fpmd/fpte should use cpu_to_le..(..)/__le..to_cpu()
+    fpmd_t *fpmd; // bug!: evrey place we load/store fpmd/fpte should use cpu_to_le..(..)/__le..to_cpu()
     /*
      *  This paramater is defined as number of pages alloced.
      *  Note: for dir_inode, num_pages is set to 0, but it has one pmd for save dentry data.
      */
     unsigned int num_pages;
     unsigned int ino;
+    unsigned long log_page;
+    unsigned int head;
+    unsigned int tail;
+    unsigned int inode_logsize;
 };
 
 extern struct kmem_cache *sunfs_inode_cachep;
@@ -51,10 +55,11 @@ struct sunfs_super_block
     __le32 s_blocksize; /* blocksize in bytes */
 
     __le32 free_inode;
-    __le64 StartADDR;
     __le32 s_mtime; /* mount time */
+
     __le32 s_wtime; /* write time */
-    __le64 head_log;
+
+    __le64 StartADDR;
     __le64 tail_log;
 };
 

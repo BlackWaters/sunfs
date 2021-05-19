@@ -49,6 +49,11 @@ struct inode *sunfs_alloc_inode(struct super_block *sb)
     }
     info->fpmd = InitFirstPage(); //NULL
     info->num_pages = 0;
+    info->head=info->tail=info->inode_logsize=0;
+    info->log_page = get_zeroed_page(GFP_KERNEL);
+    if (!info->log_page) 
+        printk(KERN_ERR "Can not alloc log_page for inode!\n"); //we can try it later
+    
     //we do not set ino in this function
     inode_init_once(&info->vfs_inode);
     return &info->vfs_inode;
@@ -64,8 +69,8 @@ void sunfs_drop_inode(struct inode *inode)
     delete_pages(info);
     kmem_cache_free(sunfs_inode_cachep, info);
     //free sunfs_inode
-    sunfs_free_ino(ino, ino);
     sunfs_free_inode(sunfs_get_inode(ino));
+    sunfs_free_ino(ino, ino);
     return;
 }
 
@@ -277,11 +282,25 @@ int sunfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
     return error;
 }
 
+#ifndef USE_LOG
 int sunfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool excl)
 {
     printk("Try to create a file__by sunfs.\n");
     return sunfs_mknod(dir, dentry, mode | S_IFREG, 0);
 }
+
+#else
+
+int sunfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool excl)
+{
+    int ret=0;
+
+    
+    ret=sunfs_mknod(dir, dentry, mode | S_IFREG, 0);
+
+}
+
+#endif
 
 void sunfs_update_time(struct inode *inode)
 {

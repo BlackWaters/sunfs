@@ -30,6 +30,7 @@ extern struct kmem_cache *sunfs_log_info_cachep;
 int sunfs_new_logfile(unsigned int logsize);
 void sunfs_log_init(void);
 bool sunfs_free_logfile(unsigned int ino);
+static inline bool set_sunfs_log_entry_inactive(struct sunfs_log_entry *plog);
 
 struct sunfs_log_info *sunfs_get_logfile(
     const char __user *buf,

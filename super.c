@@ -46,9 +46,9 @@ bool sunfs_init(void)
     super->StartADDR = cpu_to_le64(__va(PADDR_START));
     super->head_log = cpu_to_le64(__va(LOGZONE_START));
     super->tail_log = cpu_to_le64(__va(LOGZONE_START));
+    super->log_size = cpu_to_le64(0);
 
     //init root sunfs_inode
-
     root->i_size = cpu_to_le64(0);
     root->i_uid = cpu_to_le32(from_kuid(&init_user_ns, current_fsuid()));
     root->i_gid = cpu_to_le32(from_kgid(&init_user_ns, current_fsgid()));

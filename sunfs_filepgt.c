@@ -104,10 +104,12 @@ void delete_pages(struct sunfs_inode_info *info)
                 {
                     //printk(KERN_ERR "free page at 0x%lx\n",*fpte);
                     sunfs_freepage(*fpte, 0);
+                    *fpte = cpu_to_le64(0); // must set this to 0
                     info->num_pages--;
                 }
             }
             sunfs_freepage(*fpmd,0); // free original fpte
+            *fpmd = cpu_to_le64(0);
         }
         else
             break;

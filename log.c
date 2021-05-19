@@ -239,6 +239,45 @@ static inline void writeback_sb_loghead(struct sunfs_super_block *sb, struct sun
     sb->head_log = cpu_to_le64(head);
 }
 
+static inline void writeback_sb_logsize(struct sunfs_super_block *sb, unsigned int logsize)
+{
+    sb->log_size = cpu_to_le32(logsize);
+}
+
+static inline void try_push_sunfs_loghead(struct sunfs_super_block *sb, struct sunfs_log_entry *head)
+{
+    unsigned int logsize = le32_to_cpu(sb->log_size);
+    if (!logsize) 
+    {
+        
+    }
+    if (!head->active) head
+    while ( head != tail!head->active)
+}
+
+/*
+ * Set log_entry inactive, and reduce super_block logsize.
+ * If it succeeds, return 1, otherwise returns 0
+ */
+static inline bool set_sunfs_log_entry_inactive(struct sunfs_log_entry *plog)
+{
+    struct sunfs_super_block *sb;
+    unsigned int logsize;
+    sb = sunfs_get_super();
+    if (!sb)
+    {
+        printk("Can not get sunfs_super_block!\n");
+        return 0;
+    }
+    mutex_lock(&log_lock);
+    plog->active = 0;
+    logsize = le32_to_cpu(sb->log_size);
+    logsize--;
+    sb->log_size = cpu_to_le32(logsize);
+    mutex_unlock(&log_lock);
+    return 1;
+}
+
 void sunfs_log_init(void)
 {
     mutex_init(&log_lock);
@@ -248,23 +287,24 @@ void sunfs_log_init(void)
         printk("Inode cache allocs error!\n");
 }
 
-struct sunfs_log_entry *sunfs_get_write_log(
-    int file_ino,
-    int log_file_ino,
-    loff_t offset)
+/*
+ * This funciton must be called with log_lock hold
+ * It returns the log_tail, which points to an empty log_entry.
+ */
+struct sunfs_log_entry *sunfs_get_empty_log_entry(struct sunfs_super_block *sb)
 {
-    //must hold lock
-    mutex_lock(&log_lock);
-    struct sunfs_super_block *sb = sunfs_get_super();
     struct sunfs_log_entry *tail = (struct sunfs_log_entry *)le64_to_cpu(sb->tail_log);
     struct sunfs_log_entry *head = (struct sunfs_log_entry *)le64_to_cpu(sb->head_log);
     struct sunfs_log_entry *ret;
+    unsigned int logsize = le32_to_cpu(sb->log_size);
 
     while (tail->active)
     {
         if (tail == head)
         {
-            /* log is full filled, try to free.
+            /* 1. log is full filled, try to free.
+             * 2. log is crashed in first log commit.
+             * Whatever, we can check log here to make sure our file system is stable.
              * Try to check log here.
              */
         }
@@ -274,10 +314,39 @@ struct sunfs_log_entry *sunfs_get_write_log(
             if (unlikely(tail > __va(PADDR_END)))
                 tail = __va(PADDR_START);
             writeback_sb_logtail(sb, tail);
+            logsize++;
+            writeback_sb_logsize(logsize);
         }
     }
-
+    if (tail == head && logsize)
+    {
+        /*
+         * tail is NULL, but we have active log.
+         * start the recover process to push forward log_head
+         */
+    }
     memset(tail, 0, sizeof(struct sunfs_log_entry));
+    return tail;
+}
+
+struct sunfs_log_entry *sunfs_get_write_log(
+    int file_ino,
+    int log_file_ino,
+    loff_t offset)
+{
+    struct sunfs_super_block *sb = sunfs_get_super();
+    struct sunfs_log_entry *tail;
+    unsigned int logsize;
+
+    mutex_lock(&log_lock);
+    logsize = le32_to_cpu(sb->log_size);
+    tail = sunfs_get_empty_log_entry(sb);
+    if (!tail)
+    {
+        printk(KERN_ERR "Can not get sunfs_log_entry!\n");
+        return NULL;
+    }
+
     tail->log_mode = cpu_to_le16(LOG_WRITE);
     tail->related_ino = cpu_to_le32(file_ino);
     tail->log_file_ino = cpu_to_le64(log_file_ino);
@@ -286,6 +355,9 @@ struct sunfs_log_entry *sunfs_get_write_log(
     ret = tail;
     //commit
     tail->active = 1;
+    logsize++;
+    writeback_sb_logsize(sb, logsize);
+
     tail++;
     if (unlikely(tail > __va(PADDR_END)))
         tail = __va(PADDR_START);
@@ -293,4 +365,26 @@ struct sunfs_log_entry *sunfs_get_write_log(
     mutex_unlock(&log_lock);
 
     return ret;
+}
+
+struct sunfs_log_entry *sunfs_get_create_log(unsigned int ino)
+{
+    struct sunfs_super_block *sb = sunfs_get_super();
+    struct sunfs_log_entry *tail;
+    unsigned int logsize = le32_to_cpu(sb->log_size);
+
+    mutex_lock(&log_lock);
+    tail = sunfs_get_empty_log_entry(sb);
+    if (!tail) 
+    {
+        printk(KERN_ERR "Can not get sunfs_log_entry!\n");
+        return NULL;
+    }
+    tail->log_mode = cpu_to_le16(LOG_CREATE);
+    tail->related_ino = cpu_to_le32(ino);
+    tail->active = 1;
+
+    logsize++;
+    mutex_unlock(&log_lock);
+    return tail;
 }

@@ -487,6 +487,14 @@ ssize_t sunfs_file_write(
     }
 
     plog = sunfs_get_write_log(inode->i_ino, linfo->ino, offset);
+    if (!plog)
+    {
+        printk(KERN_ERR "Can not get sunfs_log_entry!\n");
+        ret = -ENOMEM;
+        goto free_list;
+    }
+
+    //user data is ready
 
     atomic_add(1, &writer);
     int waiting;
@@ -611,17 +619,18 @@ retry:
     // no error, ret should be len
     ret = len;
 
-out_writing:
-    mutex_unlock(&writing);
-    atomic_sub(1, &writer);
-
 free_list:
-
+    //free logfile and set log entry inactive
     sunfs_free_logfile(linfo->ino);
+    set_sunfs_log_entry_inactive(plog);
 
+out_writing:
     if (*ppos > isize)
         i_size_write(inode, *ppos);
-
+    mutex_unlock(&writing);
+    atomic_sub(1, &writer);
+    
+    kmem_cache_free(sunfs_log_info_cachep, linfo);
     return ret;
 }
 
