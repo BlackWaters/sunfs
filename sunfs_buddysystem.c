@@ -197,20 +197,3 @@ void ZeroFilePage(struct sunfs_page *pg)
     memset((void *)pg->vaddr, 0, (1 << pg->order) * SUNFS_PAGESIZE);
     return;
 }
-
-// get one page and return virtual address.
-unsigned long sunfs_get_onepage(void)
-{
-    struct sunfs_page *pg;
-    unsigned long ret;
-
-    pg = sunfs_getpage(0);
-    if (!pg)
-    {
-        printk("Can not alloc page for sunfs!\n");
-        return 0;
-    }
-    ret = pg->vaddr;
-    kfree(pg);
-    return ret;
-}

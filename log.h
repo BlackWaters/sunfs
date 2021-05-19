@@ -2,15 +2,13 @@
 #define LOG_H
 
 #include "sunfs.h"
-#include "inode.h"
-#include "sunfs_filepgt.h"
 
 /* Sunfs LOG_mode */
 #define LOG_CREATE 1
 #define LOG_DELETE 2
 #define LOG_WRITE 3
 
-struct log_info
+struct sunfs_log_info
 {
     unsigned int ino;
     unsigned long first_page;
@@ -31,8 +29,9 @@ extern struct kmem_cache *sunfs_log_info_cachep;
 
 int sunfs_new_logfile(unsigned int logsize);
 void sunfs_log_init(void);
+bool sunfs_free_logfile(unsigned int ino);
 
-ssize_t sunfs_get_logfile(
+struct sunfs_log_info *sunfs_get_logfile(
     const char __user *buf,
     size_t len,
     loff_t *ppos);

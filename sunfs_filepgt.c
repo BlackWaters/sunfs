@@ -1,5 +1,6 @@
 #include <linux/gfp.h>
 #include "sunfs_filepgt.h"
+#include "sunfs_buddysystem.h"
 
 DEBUG_FUNCTION void TrytoFindFirstpage(fpmd_t *fpmd)
 {
@@ -119,4 +120,21 @@ out:
     else
         printk("delete pages complete.\n");
     return 1;
+}
+
+// get one page and return virtual address.
+unsigned long sunfs_get_onepage(void)
+{
+    struct sunfs_page *pg;
+    unsigned long ret;
+
+    pg = sunfs_getpage(0);
+    if (!pg)
+    {
+        printk("Can not alloc page for sunfs!\n");
+        return 0;
+    }
+    ret = pg->vaddr;
+    kfree(pg);
+    return ret;
 }

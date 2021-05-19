@@ -319,6 +319,10 @@ int sunfs_get_newino()
     return ret;
 }
 
+/*
+ * Free the using of ino from l to r.
+ * succeed it returns 1, else returns 0
+ */
 bool sunfs_free_ino(unsigned int l, unsigned int r)
 {
     struct sunfs_inotree *data = kmem_cache_alloc(sunfs_inotree_cachep, GFP_KERNEL);

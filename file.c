@@ -457,10 +457,12 @@ ssize_t sunfs_file_write(
     struct inode *inode = mapping->host;
     struct sunfs_inode_info *info = SUNFS_INIFO(inode);
     struct sunfs_inode *si;
+    struct sunfs_log_info *linfo;
+    struct sunfs_log_entry *plog;
     unsigned long start_vaddr;
-    unsigned log_file_ino;
-    fpmd_t *fpmd = NULL;
-    fpte_t *fpte = NULL;
+    unsigned int cur_page = 0;
+    fpmd_t *fpmd = NULL, *lfpmd = NULL, *si_fpmd;
+    fpte_t *fpte = NULL, *lfpte = NULL;
     loff_t isize = i_size_read(inode);
     loff_t offset = *ppos;
     ssize_t ret = 0;
@@ -469,8 +471,6 @@ ssize_t sunfs_file_write(
     int endpage = (*ppos + len - 1) >> SUNFS_PAGESHIFT;
     int need_pages = endpage - startpage + 1;
     unsigned long i = 0;
-    struct sunfs_log_entry *plog = NULL;
-    unsigned int cur_order = 10;
 
     if (*ppos + len > SUNFS_MAX_FILESIZE)
     {
@@ -479,8 +479,14 @@ ssize_t sunfs_file_write(
     }
 
     // first get log file
-    log_file_ino = sunfs_get_logfile(buf, len, ppos);
-    plog = sunfs_get_write_log(inode->i_ino, log_file_ino, offset);
+    linfo = sunfs_get_logfile(buf, len, ppos);
+    if (!linfo)
+    {
+        printk(KERN_ERR "Can not get logfile!\n");
+        return -ENOMEM;
+    }
+
+    plog = sunfs_get_write_log(inode->i_ino, linfo->ino, offset);
 
     atomic_add(1, &writer);
     int waiting;
@@ -495,12 +501,13 @@ ssize_t sunfs_file_write(
         if (!info->fpmd)
         {
             printk("Can not alloc fpmd."); //Can not get fpmd, just go out and free page
-            ret = 0;
+            ret = -ENOMEM;
             *ppos = offset;
             goto out_writing;
         }
     }
     // Deal with first page
+
     fpmd = fpmd_offset(info->fpmd, startpage << SUNFS_PAGESHIFT);
     if (!*fpmd)
     {
@@ -508,7 +515,7 @@ ssize_t sunfs_file_write(
         if (!fpte)
         {
             printk("Can not alloc fpte.");
-            ret = 0;
+            ret = -ENOMEM;
             *ppos = offset;
             goto out_writing;
         }
@@ -518,19 +525,11 @@ ssize_t sunfs_file_write(
     if (*fpte) //first page is dirty, we should copy data.
     {
         //printk("copy data from first page!\n");
-        si = sunfs_get_inode(log_file_ino);
-        fpmd_t *log_ppage = le64_to_cpu(si->ptr_PMD);
-        if (!log_ppage)
-        {
-            printk("Log fpmd is empty!\n");
-            goto free_list;
-        }
-        log_ppage = fpmd_offset(log_ppage, 0);
-        log_ppage = fpte_offset((fpmd_t *)le64_to_cpu(*log_ppage), 0);
-        memcpy((void *)le64_to_cpu(*log_ppage), (void *)*fpte, offset_inpg(offset));
+        memcpy((void *)linfo->first_page, (void *)*fpte, offset_inpg(offset));
     }
 
     //Deal with last page
+
     fpmd = fpmd_offset(info->fpmd, endpage << SUNFS_PAGESHIFT);
     if (!*fpmd)
     {
@@ -538,7 +537,7 @@ ssize_t sunfs_file_write(
         if (!fpte)
         {
             printk("Can not alloc fpte.");
-            ret = 0;
+            ret = -ENOMEM;
             *ppos = offset;
             goto out_writing;
         }
@@ -550,27 +549,21 @@ ssize_t sunfs_file_write(
         //printk("copy data from last page!\n");
         //pg = list_entry(head.prev, struct sunfs_page, list); // get list tail
         start_vaddr = *fpte + offset_inpg(*ppos - 1) + 1;
-        /*
-         * Find last page here !
-         */
-        fpmd_t *log_ppage = le64_to_cpu(si->ptr_PMD);
-        fpmd_t *pp;
-        if (!log_ppage)
-        {
-            printk("Log fpmd is empty!\n");
-            goto free_list;
-        }
-        unsigned long logsize = le64_to_cpu(si->i_size);
-        
-
-        memcpy(/*(void *)(pg->vaddr + (1 << pg->order) * SUNFS_PAGESIZE) - SUNFS_PAGESIZE +*/` offset_inpg(*ppos - 1) + 1, (void *)start_vaddr, SUNFS_PAGESIZE - (offset_inpg(*ppos - 1) + 1));
+        memcpy((void *)linfo->last_page + offset_inpg(*ppos - 1) + 1, (void *)start_vaddr, SUNFS_PAGESIZE - (offset_inpg(*ppos - 1) + 1));
     }
 
     //Try to replace file page
+    si = sunfs_get_inode(linfo->ino);
+    si_fpmd = le64_to_cpu(si->ptr_PMD);
+    if (!si_fpmd)
+    {
+        printk("Can not get logfile pmd!\n");
+        ret = -EFAULT;
+        goto out_writing;
+    }
+
 retry:
-/*
-    pg = list_entry(head.next, struct sunfs_page, list);
-    int ResnumInpg = 1 << pg->order;
+    cur_page = 0;
     for (i = startpage; i <= endpage; i++)
     {
         fpmd = fpmd_offset(info->fpmd, i << SUNFS_PAGESHIFT);
@@ -586,8 +579,8 @@ retry:
                  * May be we have already replace some pages now.
                  * Please use log here to make sure we get right data in persistent memory.
                  */
-                /*
-                ret = 0;
+
+                ret = -ENOMEM;
                 *ppos = offset;
                 goto out_writing;
             }
@@ -602,18 +595,19 @@ retry:
         }
         else
             info->num_pages++; // this page is new alloced by us, so we inc the count.
-        *fpte = pg->vaddr;
-        ResnumInpg--;
-        if (ResnumInpg == 0)
+        //replace file page
+        lfpmd = fpmd_offset(si_fpmd, cur_page << SUNFS_PAGESHIFT);
+        if (!le64_to_cpu(*lfpmd))
         {
-            pg = list_next_entry(pg, list);
-            if (i != endpage)
-                ResnumInpg = 1 << pg->order; // not last page
+            ret = -EFAULT;
+            *ppos = offset;
+            goto out_writing;
         }
-        else
-            pg->vaddr += SUNFS_PAGESIZE;
+        lfpte = fpte_offset((fpte_t *)le64_to_cpu(*lfpmd), cur_page << SUNFS_PAGESHIFT);
+        *fpte = le64_to_cpu(*lfpte);
+        cur_page++;
     }
-*/ 
+
     // no error, ret should be len
     ret = len;
 
@@ -622,6 +616,8 @@ out_writing:
     atomic_sub(1, &writer);
 
 free_list:
+
+    sunfs_free_logfile(linfo->ino);
 
     if (*ppos > isize)
         i_size_write(inode, *ppos);

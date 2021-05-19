@@ -3,6 +3,7 @@
 #include "file.h"
 #include "sunfs_buddysystem.h"
 #include "inode.h"
+#include "log.h"
 
 void get_sunfs_superblock(struct super_block *sb)
 {
@@ -141,6 +142,7 @@ static int __init init_sunfs(void)
     if (!Buddysystem_init())
         printk("Buddy system init error!\n");
     InodeCacheInit();
+    sunfs_log_init();
     int err;
     printk("ready to register sunfs.\n");
     err = register_filesystem(&sunfs_type);
