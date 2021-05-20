@@ -229,30 +229,10 @@ bool sunfs_free_logfile(unsigned int ino)
     return 1;
 }
 
+//Must be called with log_lock hold!!!
 static inline void writeback_sb_logtail(struct sunfs_super_block *sb, struct sunfs_log_entry *tail)
 {
     sb->tail_log = cpu_to_le64(tail); // this should be atomic
-}
-
-static inline void writeback_sb_loghead(struct sunfs_super_block *sb, struct sunfs_log_entry *head)
-{
-    sb->head_log = cpu_to_le64(head);
-}
-
-static inline void writeback_sb_logsize(struct sunfs_super_block *sb, unsigned int logsize)
-{
-    sb->log_size = cpu_to_le32(logsize);
-}
-
-static inline void try_push_sunfs_loghead(struct sunfs_super_block *sb, struct sunfs_log_entry *head)
-{
-    unsigned int logsize = le32_to_cpu(sb->log_size);
-    if (!logsize) 
-    {
-        
-    }
-    if (!head->active) head
-    while ( head != tail!head->active)
 }
 
 /*
@@ -261,19 +241,8 @@ static inline void try_push_sunfs_loghead(struct sunfs_super_block *sb, struct s
  */
 static inline bool set_sunfs_log_entry_inactive(struct sunfs_log_entry *plog)
 {
-    struct sunfs_super_block *sb;
-    unsigned int logsize;
-    sb = sunfs_get_super();
-    if (!sb)
-    {
-        printk("Can not get sunfs_super_block!\n");
-        return 0;
-    }
     mutex_lock(&log_lock);
     plog->active = 0;
-    logsize = le32_to_cpu(sb->log_size);
-    logsize--;
-    sb->log_size = cpu_to_le32(logsize);
     mutex_unlock(&log_lock);
     return 1;
 }
@@ -294,37 +263,25 @@ void sunfs_log_init(void)
 struct sunfs_log_entry *sunfs_get_empty_log_entry(struct sunfs_super_block *sb)
 {
     struct sunfs_log_entry *tail = (struct sunfs_log_entry *)le64_to_cpu(sb->tail_log);
-    struct sunfs_log_entry *head = (struct sunfs_log_entry *)le64_to_cpu(sb->head_log);
     struct sunfs_log_entry *ret;
-    unsigned int logsize = le32_to_cpu(sb->log_size);
+
+    if (unlikely(tail > __va(PADDR_END)))
+        goto checktime;
 
     while (tail->active)
     {
-        if (tail == head)
+        tail++;
+        if (unlikely(tail > __va(PADDR_END)))
         {
-            /* 1. log is full filled, try to free.
-             * 2. log is crashed in first log commit.
-             * Whatever, we can check log here to make sure our file system is stable.
-             * Try to check log here.
+checktime:
+            /*
+             * Check log, GC here
              */
-        }
-        else
-        {
-            tail++;
-            if (unlikely(tail > __va(PADDR_END)))
-                tail = __va(PADDR_START);
-            writeback_sb_logtail(sb, tail);
-            logsize++;
-            writeback_sb_logsize(logsize);
+            tail = __va(PADDR_START);
         }
     }
-    if (tail == head && logsize)
-    {
-        /*
-         * tail is NULL, but we have active log.
-         * start the recover process to push forward log_head
-         */
-    }
+    writeback_sb_logtail(sb, tail);
+
     memset(tail, 0, sizeof(struct sunfs_log_entry));
     return tail;
 }
@@ -336,10 +293,8 @@ struct sunfs_log_entry *sunfs_get_write_log(
 {
     struct sunfs_super_block *sb = sunfs_get_super();
     struct sunfs_log_entry *tail;
-    unsigned int logsize;
 
     mutex_lock(&log_lock);
-    logsize = le32_to_cpu(sb->log_size);
     tail = sunfs_get_empty_log_entry(sb);
     if (!tail)
     {
@@ -355,27 +310,25 @@ struct sunfs_log_entry *sunfs_get_write_log(
     ret = tail;
     //commit
     tail->active = 1;
-    logsize++;
-    writeback_sb_logsize(sb, logsize);
 
     tail++;
-    if (unlikely(tail > __va(PADDR_END)))
-        tail = __va(PADDR_START);
     writeback_sb_logtail(sb, tail);
     mutex_unlock(&log_lock);
 
     return ret;
 }
 
+/*
+ * After finish dir_inode in persistent memory, re-implement this function
+ */
 struct sunfs_log_entry *sunfs_get_create_log(unsigned int ino)
 {
     struct sunfs_super_block *sb = sunfs_get_super();
     struct sunfs_log_entry *tail;
-    unsigned int logsize = le32_to_cpu(sb->log_size);
 
     mutex_lock(&log_lock);
     tail = sunfs_get_empty_log_entry(sb);
-    if (!tail) 
+    if (!tail)
     {
         printk(KERN_ERR "Can not get sunfs_log_entry!\n");
         return NULL;
@@ -384,7 +337,9 @@ struct sunfs_log_entry *sunfs_get_create_log(unsigned int ino)
     tail->related_ino = cpu_to_le32(ino);
     tail->active = 1;
 
-    logsize++;
+    tail++;
+    writeback_sb_logtail(sb, tail);
+
     mutex_unlock(&log_lock);
     return tail;
 }

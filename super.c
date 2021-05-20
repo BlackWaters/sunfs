@@ -44,9 +44,8 @@ bool sunfs_init(void)
     super->s_magic = cpu_to_le32(SUNFS_SUPER_MAGIC); // actually I don't know what is MAGIC now.
 
     super->StartADDR = cpu_to_le64(__va(PADDR_START));
-    super->head_log = cpu_to_le64(__va(LOGZONE_START));
+    //super->head_log = cpu_to_le64(__va(LOGZONE_START));
     super->tail_log = cpu_to_le64(__va(LOGZONE_START));
-    super->log_size = cpu_to_le64(0);
 
     //init root sunfs_inode
     root->i_size = cpu_to_le64(0);

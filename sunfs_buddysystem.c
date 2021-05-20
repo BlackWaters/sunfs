@@ -170,7 +170,7 @@ void sunfs_freepage(unsigned long vaddr, unsigned int order)
     struct sunfs_page *p = kmalloc(sizeof(struct sunfs_page), GFP_KERNEL);
     p->vaddr = vaddr;
     p->order = order;
-    ZeroFilePage(p);
+    //ZeroFilePage(p); do not zero this page, maybe we will use it in log
     p->num = getpagenum(p);
     INIT_LIST_HEAD(&p->list);
     unsigned int cur = order;

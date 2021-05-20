@@ -621,8 +621,8 @@ retry:
 
 free_list:
     //free logfile and set log entry inactive
-    sunfs_free_logfile(linfo->ino);
     set_sunfs_log_entry_inactive(plog);
+    sunfs_free_logfile(linfo->ino);
 
 out_writing:
     if (*ppos > isize)

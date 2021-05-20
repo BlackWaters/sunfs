@@ -209,16 +209,6 @@ struct inode *sunfs_new_inode(struct super_block *sb, const struct inode *dir, u
         err = -ENOMEM;
         goto Fail;
     }
-    /*
-    pg = sunfs_getpage(0);
-    if (!pg)
-    {
-        printk("We can not alloc page!\n");
-        err = -ENOMEM;
-        goto Fail;
-    }
-    */
-    // new alloc page, update related var
     info->fpmd = sunfs_get_onepage();
     si->ptr_PMD = cpu_to_le64(info->fpmd);
     kfree(pg);
@@ -293,11 +283,15 @@ int sunfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool ex
 
 int sunfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool excl)
 {
+    printk("Try to create a file__by sunfs.\n");
     int ret=0;
+    /*
+     * need to log many things here:
+     * parent's inode, file name, mode, ...
+     */
 
-    
-    ret=sunfs_mknod(dir, dentry, mode | S_IFREG, 0);
-
+    ret=sunfs_mknod(dir, dentry, mode | S_IFREG, 0);    
+    return ret;
 }
 
 #endif
