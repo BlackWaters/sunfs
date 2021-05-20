@@ -11,7 +11,7 @@ struct address_space_operations sunfs_aops = {
 };
 
 const struct file_operations sunfs_file_ops = {
-    .read = sunfs_file_read,
+    .read = sunfs_file_read_mmap,
     .write = sunfs_file_write,
     .read_iter = generic_file_read_iter,
     .write_iter = generic_file_write_iter,

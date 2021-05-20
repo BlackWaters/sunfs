@@ -13,7 +13,7 @@ unsigned int getpagenum(struct sunfs_page *page)
     unsigned long vaddr = page->vaddr;
     unsigned int order = page->order;
     // we get page from DATAZONE
-    return (unsigned int)((__pa(vaddr) - BUDDY_SYSTEM_START) >> (order + SUNFS_PAGESHIFT));
+    return (unsigned int)((vaddr - BUDDY_SYSTEM_START) >> (order + SUNFS_PAGESHIFT));
 }
 
 // must be called with buddy_lock hold!!

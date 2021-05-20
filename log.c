@@ -6,6 +6,24 @@
 struct mutex log_lock;
 struct kmem_cache *sunfs_log_info_cachep;
 
+//Must be called with log_lock hold!!!
+static inline void writeback_sb_logtail(struct sunfs_super_block *sb, struct sunfs_log_entry *tail)
+{
+    sb->tail_log = cpu_to_le64(tail); // this should be atomic
+}
+
+/*
+ * Set log_entry inactive, and reduce super_block logsize.
+ * If it succeeds, return 1, otherwise returns 0
+ */
+inline bool set_sunfs_log_entry_inactive(struct sunfs_log_entry *plog)
+{
+    mutex_lock(&log_lock);
+    plog->active = 0;
+    mutex_unlock(&log_lock);
+    return 1;
+}
+
 int sunfs_new_logfile(unsigned int logsize) //number of pages
 {
     unsigned int ino;
@@ -229,24 +247,6 @@ bool sunfs_free_logfile(unsigned int ino)
     return 1;
 }
 
-//Must be called with log_lock hold!!!
-static inline void writeback_sb_logtail(struct sunfs_super_block *sb, struct sunfs_log_entry *tail)
-{
-    sb->tail_log = cpu_to_le64(tail); // this should be atomic
-}
-
-/*
- * Set log_entry inactive, and reduce super_block logsize.
- * If it succeeds, return 1, otherwise returns 0
- */
-static inline bool set_sunfs_log_entry_inactive(struct sunfs_log_entry *plog)
-{
-    mutex_lock(&log_lock);
-    plog->active = 0;
-    mutex_unlock(&log_lock);
-    return 1;
-}
-
 void sunfs_log_init(void)
 {
     mutex_init(&log_lock);
@@ -255,6 +255,7 @@ void sunfs_log_init(void)
     if (sunfs_log_info_cachep == NULL)
         printk("Inode cache allocs error!\n");
 }
+
 
 /*
  * This funciton must be called with log_lock hold
@@ -307,7 +308,6 @@ struct sunfs_log_entry *sunfs_get_write_log(
     tail->log_file_ino = cpu_to_le64(log_file_ino);
     tail->st_addr = offset;
 
-    ret = tail;
     //commit
     tail->active = 1;
 
@@ -315,7 +315,7 @@ struct sunfs_log_entry *sunfs_get_write_log(
     writeback_sb_logtail(sb, tail);
     mutex_unlock(&log_lock);
 
-    return ret;
+    return tail;
 }
 
 /*

@@ -21,6 +21,8 @@
 //#define DIRECTSET
 #define SUNFS_SUPER_MAGIC 0xEFFC
 #define SUNFS_ROOT_INO 0
+#define NAGTIVEUL_MASK 0xffffffffffffffff
+#define NAGTIVEINT_MASK 0xffffffff
 
 #define RCUMODE_RW
 #define USE_LOG

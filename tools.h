@@ -8,6 +8,7 @@
 #include <asm/pgalloc.h>
 #include <asm/tlbflush.h>
 #include <linux/spinlock.h>
+#include "sunfs.h"
 
 unsigned long InitPageTableForSunfs(
     unsigned long paddr_start,
@@ -35,5 +36,8 @@ unsigned long SetPte(
     unsigned long paddr_end);
 
 void print_for_each_vma(struct mm_struct *mm);
+unsigned long try_find_valid_vmstart(struct mm_struct *mm, unsigned long length);
+void replace_page_fpmd(struct mm_struct *mm, fpmd_t *fpmd, unsigned long vaddr_start);
+unsigned long ShowPyhsicADDR(unsigned long addr);
 
 #endif

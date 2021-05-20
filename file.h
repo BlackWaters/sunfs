@@ -13,6 +13,10 @@ ssize_t sunfs_file_write(
     size_t len,
     loff_t *ppos);
 
-void InitFilePara(void);
+ssize_t sunfs_file_read_mmap(
+    struct file *filp,
+    char __user *buf,
+    size_t len,
+    loff_t *ppos);
 
 #endif

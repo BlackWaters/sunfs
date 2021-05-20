@@ -5,18 +5,60 @@
 #include "sunfs_filepgt.h"
 #include "sunfs_buddysystem.h"
 #include "log.h"
+#include "tools.h"
 #define lowbit(x) x & -x
 
 struct mutex writing;
 atomic_t writer = ATOMIC_INIT(0);
 atomic_t reader = ATOMIC_INIT(0);
 
-#ifndef RCUMODE_RW
-
-void InitFilePara(void)
+ssize_t sunfs_file_read_mmap(
+    struct file *filp,
+    char __user *buf,
+    size_t len,
+    loff_t *ppos)
 {
-    return;
+    printk(KERN_ALERT "ready to read mmap!\n");
+    struct address_space *mapping = filp->f_mapping;
+    struct inode *inode = mapping->host;
+    struct sunfs_inode_info *info = SUNFS_INIFO(inode);
+    unsigned long vaddr = try_find_valid_vmstart(current->mm, len);
+    int ret;
+    char *buffer = NULL;
+
+    replace_page_fpmd(current->mm, info->fpmd, vaddr);
+    ShowPyhsicADDR(vaddr);
+    buffer = (char *)kmalloc(sizeof(char) * (len + 5), GFP_KERNEL);
+    if (!buffer)
+    {
+        printk(KERN_ERR "buffer can not be alloced!\n");
+        return -EFAULT;
+    }
+    memset(buffer, 0, sizeof(char) * (len + 5));
+    ret = copy_from_user(buffer, vaddr, len);
+    if (ret)
+    {
+        printk(KERN_ERR "error in copy_from_user!\n");
+        printk(KERN_ERR "error ino is %d\n",ret);
+        kfree(buffer);
+        return -EFAULT;
+    }
+    ret = copy_to_user(buf, buffer, len);
+    if (ret)
+    {
+        printk(KERN_ERR "error in copy_to_user!\n");
+        printk(KERN_ERR "error ino is %d\n",ret);
+        kfree(buffer);
+        return -EFAULT;
+    }
+    *ppos += len;
+
+free:
+    kfree(buffer);
+    return len;
 }
+
+#ifndef RCUMODE_RW
 
 ssize_t sunfs_file_read(
     struct file *filp,
@@ -629,7 +671,7 @@ out_writing:
         i_size_write(inode, *ppos);
     mutex_unlock(&writing);
     atomic_sub(1, &writer);
-    
+
     kmem_cache_free(sunfs_log_info_cachep, linfo);
     return ret;
 }
