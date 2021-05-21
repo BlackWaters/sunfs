@@ -2,8 +2,14 @@
 
 > My master degree thesis, first attempt in file system.
 
-sunfs -- a ram based file system in linux(x86-64 only).
+sunfs -- a file system based on persistent memory in linux(x86-64 only).
 
+## Noted 
+
+**This is a file system demo, not finished yet. Now we can use some POSIX API in sunfs, but not standared. Still has a lot things to do.**
+
+
+## Abstract
 Actually, sunfs is a reimplement of simfs[1]. I use an easier way to implement file page and file page table. Not standared, but easy to implement.
 
 After I finished sunfs, I did some tests like cache & tlb misses, read & write throughput with other file system(ramfs, tmpfs, pmfs[2] ... ) . Here is some tests:
