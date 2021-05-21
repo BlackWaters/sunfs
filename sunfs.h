@@ -12,6 +12,7 @@
 #define SUNFS_PAGESHIFT 12
 #define SUNFS_PAGESIZE ((unsigned long)1 << SUNFS_PAGESHIFT)
 #define SUNFS_PAGEMASK (SUNFS_PAGESIZE - 1)
+#define SUNFS_PGENTRYMASK (~SUNFS_PAGEMASK)
 #define SUNFS_MAX_FILESIZE ((unsigned long)1 << 30)
 #define PGENTRY_SIZE 512
 #define FPMD_SHIFT (21)
@@ -33,7 +34,11 @@ typedef unsigned long fpte_t;
 struct sunfs_inode_info
 {
     struct inode vfs_inode;
-    fpmd_t *fpmd; // bug!: evrey place we load/store fpmd/fpte should use cpu_to_le..(..)/__le..to_cpu()
+    /*
+     * Note: evrey place we load/store fpmd/fpte should use cpu_to_le..(..)/__le..to_cpu()
+     * fpmd store the virtual address of fpmd
+     */
+    fpmd_t *fpmd;
     /*
      *  This paramater is defined as number of pages alloced.
      *  Note: for dir_inode, num_pages is set to 0, but it has one pmd for save dentry data.

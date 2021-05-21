@@ -11,13 +11,13 @@ DEBUG_FUNCTION void TrytoFindFirstpage(fpmd_t *fpmd)
         return;
     }
     fpmd = fpmd_offset(fpmd, 0);
-    fpte = fpte_offset((fpte_t *)*fpmd, 0);
+    fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), 0);
     if (fpte == NULL)
     {
         printk("fpte is NULL!\n");
         return;
     }
-    printk("0x%lx\n", *fpte);
+    printk("0x%lx\n", fpte_vaddr(fpte));
     return;
 }
 
@@ -64,7 +64,7 @@ void append_pages(struct sunfs_inode_info *info, unsigned int page_num)
         kfree(p);
         unsigned long offset = (unsigned long)(num + i) << SUNFS_PAGESHIFT;
         fpmd = fpmd_offset(info->fpmd, offset);
-        if (!*fpmd)
+        if (fpmd_none(fpmd)) //fpmd is empty
         {
             fpte_t *fpte = sunfs_get_onepage();
             if (!fpte)
@@ -72,10 +72,10 @@ void append_pages(struct sunfs_inode_info *info, unsigned int page_num)
                 printk("Can not alloc fpte!");
                 return;
             }
-            *fpmd = fpte;
+            fpmd_populate(fpmd, fpte);
         }
-        fpte = fpte_offset(*fpmd, offset);
-        *fpte = start;
+        fpte = fpte_offset((fpte_t *) fpmd_vaddr(fpmd), offset);
+        fpte_populate(fpte, start);
     }
     info->num_pages += page_num;
     return;
@@ -86,41 +86,39 @@ void delete_pages(struct sunfs_inode_info *info)
     if (!info->num_pages)
         goto out;
     fpmd_t *fpmd = info->fpmd;
-    fpte_t *fpte = *fpmd;
+    fpte_t *fpte = fpmd_vaddr(fpmd);
     unsigned long i = 0, j = 0;
     for (; i < PGENTRY_SIZE; i++, fpmd++)
     {
-        fpte = *fpmd;
         j = 0;
         if (info->num_pages) //we still have page to free
         {
-            if (!fpte)
+            if (fpmd_none(fpmd))
                 continue;                         //not in this fpte
+            fpte = fpmd_vaddr(fpmd);
             for (; j < PGENTRY_SIZE; j++, fpte++) // check every entry
             {
                 if (info->num_pages == 0)
                     break;
-                if (*fpte)
+                if (!fpte_none(fpte))
                 {
                     //printk(KERN_ERR "free page at 0x%lx\n",*fpte);
-                    sunfs_freepage(*fpte, 0);
-                    *fpte = cpu_to_le64(0); // must set this to 0
+                    sunfs_freepage(fpte_vaddr(fpte), 0);
                     info->num_pages--;
                 }
             }
-            sunfs_freepage(*fpmd,0); // free original fpte
-            *fpmd = cpu_to_le64(0);
+            sunfs_freepage(fpmd_vaddr(fpmd), 0); // free original fpte
         }
         else
             break;
     }
     if (info->fpmd)
-        sunfs_freepage(info->fpmd,0);
+        sunfs_freepage(info->fpmd, 0);
 out:
     if (info->num_pages)
-        printk("delete pages error!");
+        printk(KERN_ERR "delete pages error!");
     else
-        printk("delete pages complete.\n");
+        printk(KERN_DEBUG "delete pages complete.\n");
     return 1;
 }
 

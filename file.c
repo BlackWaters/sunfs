@@ -39,7 +39,7 @@ ssize_t sunfs_file_read_mmap(
     if (ret)
     {
         printk(KERN_ERR "error in copy_from_user!\n");
-        printk(KERN_ERR "error ino is %d\n",ret);
+        printk(KERN_ERR "error ino is %d\n", ret);
         kfree(buffer);
         return -EFAULT;
     }
@@ -47,7 +47,7 @@ ssize_t sunfs_file_read_mmap(
     if (ret)
     {
         printk(KERN_ERR "error in copy_to_user!\n");
-        printk(KERN_ERR "error ino is %d\n",ret);
+        printk(KERN_ERR "error ino is %d\n", ret);
         kfree(buffer);
         return -EFAULT;
     }
@@ -88,7 +88,7 @@ ssize_t sunfs_file_read(
     while (len)
     {
         fpmd = fpmd_offset(info->fpmd, *ppos);
-        if (!*fpmd) // Our file may have hole
+        if (fpmd_none(fpmd)) // Our file may have hole
         {
             fpte = sunfs_get_onepage();
             if (!fpte)
@@ -96,10 +96,10 @@ ssize_t sunfs_file_read(
                 printk("Can not alloc fpte.");
                 goto out_reading;
             }
-            *fpmd = fpte;
+            fpmd_populate(fpmd, fpte);
         }
-        fpte = fpte_offset((fpte_t *)*fpmd, *ppos);
-        if (!*fpte) // file hole
+        fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), *ppos);
+        if (fpte_none(fpte)) // file hole
         {
             struct sunfs_page *pg = sunfs_getpage(0);
             if (!pg)
@@ -107,10 +107,11 @@ ssize_t sunfs_file_read(
                 printk("Run out of memory, can't fill hole in the file.");
                 goto out_reading;
             }
-            *fpte = pg->vaddr;
+            //*fpte = pg->vaddr;
+            fpte_populate(fpte, pg->vaddr);
             kfree(pg);
         }
-        start_vaddr = *fpte + offset_inpg(*ppos);
+        start_vaddr = fpte_vaddr(fpte) + offset_inpg(*ppos);
         unsigned long copysize = (len < SUNFS_PAGESIZE - offset_inpg(*ppos) ? len : SUNFS_PAGESIZE - offset_inpg(*ppos));
         unsigned long rr = copy_to_user(buf, start_vaddr, copysize);
         if (rr)
@@ -157,7 +158,7 @@ ssize_t sunfs_file_write(
     while (len)
     {
         fpmd = fpmd_offset(info->fpmd, *ppos);
-        if (!*fpmd)
+        if (fpmd_none(fpmd))
         {
             fpte = sunfs_get_onepage();
             if (!fpte)
@@ -165,10 +166,10 @@ ssize_t sunfs_file_write(
                 printk("Can not alloc fpte.");
                 goto out_writing;
             }
-            *fpmd = fpte;
+            fpmd_populate(fpmd, fpte)
         }
-        fpte = fpte_offset((fpte_t *)*fpmd, *ppos);
-        if (!*fpte)
+        fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), *ppos);
+        if (fpte_none(fpte))
         {
             struct sunfs_page *pg = sunfs_getpage(0);
             if (!pg)
@@ -176,12 +177,13 @@ ssize_t sunfs_file_write(
                 printk("Run out of memory.");
                 goto out_writing;
             }
+            //*fpte = pg->vaddr;
+            fpte_populate(fpte, pg->vaddr);
             info->num_pages++;
-            *fpte = pg->vaddr;
             kfree(pg);
         }
 
-        start_vaddr = *fpte + offset_inpg(*ppos);
+        start_vaddr = fpte_vaddr(fpte) + offset_inpg(*ppos);
         unsigned long copysize = (len < SUNFS_PAGESIZE - offset_inpg(*ppos) ? len : SUNFS_PAGESIZE - offset_inpg(*ppos));
         unsigned long rr = copy_from_user(start_vaddr, buf, copysize);
         if (rr)
@@ -240,7 +242,7 @@ ssize_t sunfs_file_read(
     while (len)
     {
         fpmd = fpmd_offset(info->fpmd, *ppos);
-        if (!*fpmd) // Our file may have hole
+        if (fpmd_none(fpmd)) // Our file may have hole
         {
             fpte = sunfs_get_onepage();
             if (!fpte)
@@ -248,10 +250,10 @@ ssize_t sunfs_file_read(
                 printk("Can not alloc fpte.");
                 goto out_reading;
             }
-            *fpmd = fpte;
+            fpmd_populate(fpmd, fpte);
         }
-        fpte = fpte_offset((fpte_t *)*fpmd, *ppos);
-        if (!*fpte) // file hole
+        fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), *ppos);
+        if (fpte_none(fpte)) // file hole
         {
             struct sunfs_page *pg = sunfs_getpage(0);
             if (!pg)
@@ -259,10 +261,12 @@ ssize_t sunfs_file_read(
                 printk("Run out of memory, can't fill hole in the file.");
                 goto out_reading;
             }
-            *fpte = pg->vaddr;
+            // *fpte = pg->vaddr;
+            fpte_populate(fpte, pg->vaddr);
+            info->num_pages++;
             kfree(pg);
         }
-        start_vaddr = *fpte + offset_inpg(*ppos);
+        start_vaddr = fpte_vaddr(fpte) + offset_inpg(*ppos);
         unsigned long copysize = (len < SUNFS_PAGESIZE - offset_inpg(*ppos) ? len : SUNFS_PAGESIZE - offset_inpg(*ppos));
         unsigned long rr = copy_to_user(buf, start_vaddr, copysize);
         if (rr)
@@ -373,7 +377,7 @@ ssize_t sunfs_file_write(
     }
     // Deal with first page
     fpmd = fpmd_offset(info->fpmd, startpage << SUNFS_PAGESHIFT);
-    if (!*fpmd)
+    if (fpmd_none(fpmd))
     {
         fpte = sunfs_get_onepage();
         if (!fpte)
@@ -383,18 +387,19 @@ ssize_t sunfs_file_write(
             *ppos = offset;
             goto out_writing;
         }
-        *fpmd = fpte;
+        //*fpmd = fpte;
+        fpmd_populate(fpmd, fpte);
     }
-    fpte = fpte_offset((fpte_t *)*fpmd, startpage << SUNFS_PAGESHIFT);
-    if (*fpte) //first page is dirty, we should copy data.
+    fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), startpage << SUNFS_PAGESHIFT);
+    if (fpte_none(fpte)) //first page is dirty, we should copy data.
     {
         //printk("copy data from first page!\n");
         pg = list_entry(head.next, struct sunfs_page, list);
-        memcpy((void *)pg->vaddr, (void *)*fpte, offset_inpg(offset));
+        memcpy((void *)pg->vaddr, (void *)fpte_vaddr(fpte), offset_inpg(offset));
     }
     //Deal with last page
     fpmd = fpmd_offset(info->fpmd, endpage << SUNFS_PAGESHIFT);
-    if (!*fpmd)
+    if (fpmd_none(fpmd))
     {
         fpte = sunfs_get_onepage();
         if (!fpte)
@@ -404,14 +409,15 @@ ssize_t sunfs_file_write(
             *ppos = offset;
             goto out_writing;
         }
-        *fpmd = fpte;
+        // *fpmd = fpte;
+        fpmd_populate(fpmd, fpte);
     }
-    fpte = fpte_offset((fpte_t *)*fpmd, endpage << SUNFS_PAGESHIFT);
-    if (*fpte) // last page is dirty, we do the same as first page
+    fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), endpage << SUNFS_PAGESHIFT);
+    if (!fpte_none(fpte)) // last page is dirty, we do the same as first page
     {
         //printk("copy data from last page!\n");
         pg = list_entry(head.prev, struct sunfs_page, list); // get list tail
-        start_vaddr = *fpte + offset_inpg(*ppos - 1) + 1;
+        start_vaddr = fpte_vaddr(fpte) + offset_inpg(*ppos - 1) + 1;
         memcpy((void *)(pg->vaddr + (1 << pg->order) * SUNFS_PAGESIZE) - SUNFS_PAGESIZE + offset_inpg(*ppos - 1) + 1, (void *)start_vaddr, SUNFS_PAGESIZE - (offset_inpg(*ppos - 1) + 1));
     }
 
@@ -422,7 +428,7 @@ retry:
     for (i = startpage; i <= endpage; i++)
     {
         fpmd = fpmd_offset(info->fpmd, i << SUNFS_PAGESHIFT);
-        if (!*fpmd)
+        if (fpmd_none(fpmd))
         {
             fpte = sunfs_get_onepage();
             if (!fpte)
@@ -438,18 +444,20 @@ retry:
                 *ppos = offset;
                 goto out_writing;
             }
-            *fpmd = fpte;
+            // *fpmd = fpte;
+            fpmd_populate(fpmd, fpte);
         }
         // page table is ok, get file page
-        fpte = fpte_offset((fpte_t *)*fpmd, i << SUNFS_PAGESHIFT);
-        if (*fpte) //This page is not empty, so we have to free .
+        fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), i << SUNFS_PAGESHIFT);
+        if (!fpte_none(fpte)) //This page is not empty, so we have to free .
         {
             //printk(KERN_ERR "Free page at 0x%lx\n", *fpte);
-            sunfs_freepage(*fpte, 0);
+            sunfs_freepage(fpte_vaddr(fpte), 0);
         }
         else
             info->num_pages++; // this page is new alloced by us, so we inc the count.
-        *fpte = pg->vaddr;
+        // *fpte = pg->vaddr;
+        fpte_populate(fpte, pg->vaddr);
         ResnumInpg--;
         if (ResnumInpg == 0)
         {
@@ -559,7 +567,7 @@ ssize_t sunfs_file_write(
     // Deal with first page
 
     fpmd = fpmd_offset(info->fpmd, startpage << SUNFS_PAGESHIFT);
-    if (!*fpmd)
+    if (fpmd_none(fpmd))
     {
         fpte = sunfs_get_onepage();
         if (!fpte)
@@ -569,19 +577,19 @@ ssize_t sunfs_file_write(
             *ppos = offset;
             goto out_writing;
         }
-        *fpmd = cpu_to_le64(fpte);
+        // *fpmd = cpu_to_le64(fpte);
+        fpmd_populate(fpmd, fpte);
     }
-    fpte = fpte_offset((fpte_t *)*fpmd, startpage << SUNFS_PAGESHIFT);
-    if (*fpte) //first page is dirty, we should copy data.
+    fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), startpage << SUNFS_PAGESHIFT);
+    if (!fpte_none(fpte)) //first page is dirty, we should copy data.
     {
         //printk("copy data from first page!\n");
-        memcpy((void *)linfo->first_page, (void *)*fpte, offset_inpg(offset));
+        memcpy((void *)linfo->first_page, (void *)fpte_vaddr(fpte), offset_inpg(offset));
     }
 
     //Deal with last page
-
     fpmd = fpmd_offset(info->fpmd, endpage << SUNFS_PAGESHIFT);
-    if (!*fpmd)
+    if (fpmd_none(fpmd))
     {
         fpte = sunfs_get_onepage();
         if (!fpte)
@@ -591,14 +599,15 @@ ssize_t sunfs_file_write(
             *ppos = offset;
             goto out_writing;
         }
-        *fpmd = fpte;
+        // *fpmd = fpte;
+        fpmd_populate(fpmd, fpte);
     }
-    fpte = fpte_offset((fpte_t *)*fpmd, endpage << SUNFS_PAGESHIFT);
-    if (*fpte) // last page is dirty, we do the same as first page
+    fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), endpage << SUNFS_PAGESHIFT);
+    if (!fpte_none(fpte)) // last page is dirty, we do the same as first page
     {
         //printk("copy data from last page!\n");
         //pg = list_entry(head.prev, struct sunfs_page, list); // get list tail
-        start_vaddr = *fpte + offset_inpg(*ppos - 1) + 1;
+        start_vaddr = fpte_vaddr(fpte) + offset_inpg(*ppos - 1) + 1;
         memcpy((void *)linfo->last_page + offset_inpg(*ppos - 1) + 1, (void *)start_vaddr, SUNFS_PAGESIZE - (offset_inpg(*ppos - 1) + 1));
     }
 
@@ -617,7 +626,7 @@ retry:
     for (i = startpage; i <= endpage; i++)
     {
         fpmd = fpmd_offset(info->fpmd, i << SUNFS_PAGESHIFT);
-        if (!*fpmd)
+        if (fpmd_none(fpmd))
         {
             fpte = sunfs_get_onepage();
             if (!fpte)
@@ -634,27 +643,29 @@ retry:
                 *ppos = offset;
                 goto out_writing;
             }
-            *fpmd = fpte;
+            // *fpmd = fpte;
+            fpmd_populate(fpmd, fpte);
         }
         // page table is ok, get file page
-        fpte = fpte_offset((fpte_t *)*fpmd, i << SUNFS_PAGESHIFT);
-        if (*fpte) //This page is not empty, so we have to free .
+        fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), i << SUNFS_PAGESHIFT);
+        if (!fpte_none(fpte)) //This page is not empty, so we have to free .
         {
             //printk(KERN_ERR "Free page at 0x%lx\n", *fpte);
-            sunfs_freepage(*fpte, 0);
+            sunfs_freepage(fpte_vaddr(fpte), 0);
         }
         else
             info->num_pages++; // this page is new alloced by us, so we inc the count.
         //replace file page
         lfpmd = fpmd_offset(si_fpmd, cur_page << SUNFS_PAGESHIFT);
-        if (!le64_to_cpu(*lfpmd))
+        if (fpmd_none(lfpmd))
         {
             ret = -EFAULT;
             *ppos = offset;
             goto out_writing;
         }
-        lfpte = fpte_offset((fpte_t *)le64_to_cpu(*lfpmd), cur_page << SUNFS_PAGESHIFT);
-        *fpte = le64_to_cpu(*lfpte);
+        lfpte = fpte_offset((fpte_t *)fpmd_vaddr(lfpmd), cur_page << SUNFS_PAGESHIFT);
+        // *fpte = le64_to_cpu(*lfpte);
+        fpte_populate(fpte, fpte_vaddr(lfpte));
         cur_page++;
     }
 

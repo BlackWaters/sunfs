@@ -168,7 +168,7 @@ struct sunfs_log_info *sunfs_get_logfile(
         for (; start_vaddr != end_vaddr; start_vaddr += SUNFS_PAGESIZE)
         {
             fpmd = fpmd_offset(si_fpmd, cur_page << SUNFS_PAGESHIFT);
-            if (!*fpmd)
+            if (fpmd_none(fpmd))
             {
                 fpte = sunfs_get_onepage();
                 if (!fpte)
@@ -177,13 +177,15 @@ struct sunfs_log_info *sunfs_get_logfile(
                     linfo = NULL;
                     goto free_list;
                 }
-                *fpmd = cpu_to_le64(fpte);
+                // *fpmd = cpu_to_le64(fpte);
+                fpmd_populate(fpmd, fpte);
             }
-            fpte = fpte_offset((fpte_t *)le64_to_cpu(*fpmd), cur_page << SUNFS_PAGESHIFT);
-            *fpte = cpu_to_le64(start_vaddr);
+            fpte = fpte_offset((fpte_t *)fpmd_vaddr(fpmd), cur_page << SUNFS_PAGESHIFT);
+            // *fpte = cpu_to_le64(start_vaddr);
+            fpte_populate(fpte, start_vaddr);
             if (cur_page == 0)
-                first_page = *fpte;
-            last_page = *fpte;
+                first_page = fpte_vaddr(fpte);
+            last_page = fpte_vaddr(fpte);
             cur_page++;
         }
     }
@@ -230,7 +232,7 @@ bool sunfs_free_logfile(unsigned int ino)
 
     for (fpmd = si_fpmd, i = 0; i < PGENTRY_SIZE; i++, fpmd++)
     {
-        fpte = le64_to_cpu(*fpmd);
+        fpte = fpmd_vaddr(fpmd);
         if (!fpte)
             break;
         sunfs_freepage(fpte, 0);
@@ -256,7 +258,6 @@ void sunfs_log_init(void)
         printk("Inode cache allocs error!\n");
 }
 
-
 /*
  * This funciton must be called with log_lock hold
  * It returns the log_tail, which points to an empty log_entry.
@@ -274,7 +275,7 @@ struct sunfs_log_entry *sunfs_get_empty_log_entry(struct sunfs_super_block *sb)
         tail++;
         if (unlikely(tail > __va(PADDR_END)))
         {
-checktime:
+        checktime:
             /*
              * Check log, GC here
              */
