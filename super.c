@@ -139,7 +139,7 @@ static int __init init_sunfs(void)
     //Init sunfs
     InitPageTableForSunfs(PADDR_START, PADDR_END);
     if (!Buddysystem_init())
-        printk("Buddy system init error!\n");
+        printk(KERN_ERR "Buddy system init error!\n");
     InodeCacheInit();
     sunfs_log_init();
     int err;

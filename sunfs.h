@@ -45,10 +45,14 @@ struct sunfs_inode_info
      */
     unsigned int num_pages;
     unsigned int ino;
+    /*
+     * inode log struct
+     */
     unsigned long log_page;
     unsigned int head;
     unsigned int tail;
     unsigned int inode_logsize;
+    struct mutex inode_log_lock;
 };
 
 extern struct kmem_cache *sunfs_inode_cachep;

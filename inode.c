@@ -11,7 +11,7 @@ struct address_space_operations sunfs_aops = {
 };
 
 const struct file_operations sunfs_file_ops = {
-    .read = sunfs_file_read,
+    .read = sunfs_file_read_mmap,
     .write = sunfs_file_write,
     .read_iter = generic_file_read_iter,
     .write_iter = generic_file_write_iter,
@@ -50,10 +50,10 @@ struct inode *sunfs_alloc_inode(struct super_block *sb)
     info->fpmd = InitFirstPage(); //NULL
     info->num_pages = 0;
     info->head=info->tail=info->inode_logsize=0;
-    info->log_page = get_zeroed_page(GFP_KERNEL);
+    info->log_page = get_zeroed_page(GFP_KERNEL);  // this page is alloced from kernel
     if (!info->log_page) 
         printk(KERN_ERR "Can not alloc log_page for inode!\n"); //we can try it later
-    
+    mutex_init(&info->inode_log_lock);
     //we do not set ino in this function
     inode_init_once(&info->vfs_inode);
     return &info->vfs_inode;

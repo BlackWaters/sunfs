@@ -36,7 +36,8 @@ unsigned long try_find_valid_vmstart(struct mm_struct *mm, unsigned long length)
 
     re_align:
         last = (last + PAGE_1G - 1) & ALIGNED_PAGE_1G;
-        //printk(" st: 0x%lx ed: 0x%lx length: 0x%lx\n", vma->vm_start, vma->vm_end, vma->vm_end - vma->vm_start);
+        printk(KERN_DEBUG " st: 0x%lx ed: 0x%lx length: 0x%lx\n", vma->vm_start, vma->vm_end, vma->vm_end - vma->vm_start);
+        
         if (last >= l && last < r)
         {
             printk("last is in [l,r], error!\n");
@@ -72,18 +73,18 @@ void replace_page_fpmd(struct mm_struct *mm, fpmd_t *fpmd, unsigned long vaddr_s
         spin_unlock(&mm->page_table_lock);
     }
     __flush_tlb_all();
-    //pud = (pud_t *)*pgd;
+
     pud = (pud_t *)pgd_page_vaddr(*pgd);
     // get pud offset
     pud = pud + pud_index(vaddr_start);
     pud_populate(current->mm,pud,(pmd_t *)fpmd);
     //insert fpmd in pud
     //pud->pud = __pa(fpmd);
-    fpte_t *fpte = *fpmd;
+    //fpte_t *fpte = *fpmd;
 
-    *fpte = __pa(*fpte) | 0x067;
-    *fpmd = __pa(*fpmd) | 0x067;
-    //pud->pud |= 0x1e7;
+    //*fpte = __pa(*fpte) | 0x067;
+    //*fpmd = __pa(*fpmd) | 0x067;
+
     __flush_tlb_all();
     return;
 }
@@ -97,13 +98,13 @@ unsigned long ShowPyhsicADDR(unsigned long addr)
 
     printk(KERN_DEBUG "mm->pgd: 0x%lx\n", current->mm->pgd);
     pgd = pgd_offset(current->mm, addr);
-    printk(KERN_DEBUG "pgd: 0x%lx\ncontains: 0x%lx\n", pgd, pgd->pgd);
+    printk(KERN_DEBUG "pgd: 0x%lx\tcontains: 0x%lx\n", pgd, pgd->pgd);
     pud = pud_offset((p4d_t *)pgd, addr);
-    printk(KERN_DEBUG "pud: 0x%lx\ncontains: 0x%lx\n", pud, pud->pud);
+    printk(KERN_DEBUG "pud: 0x%lx\tcontains: 0x%lx\n", pud, pud->pud);
     pmd = pmd_offset(pud, addr);
-    printk(KERN_DEBUG "pmd: 0x%lx\ncontains 0x%lx\n", pmd, pmd->pmd);
+    printk(KERN_DEBUG "pmd: 0x%lx\tcontains 0x%lx\n", pmd, pmd->pmd);
     pte = pte_offset_kernel(pmd, addr);
-    printk(KERN_DEBUG "pte: 0x%lx\n pte->pte: 0x%lx\n", pte, pte->pte);
+    printk(KERN_DEBUG "pte: 0x%lx\tpte->pte: 0x%lx\n", pte, pte->pte);
 
     unsigned long mask = 0x000ffffffffff000UL;
     //printk(KERN_DEBUG "mask : %lx\n",mask);

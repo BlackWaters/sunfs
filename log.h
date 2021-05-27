@@ -32,6 +32,8 @@ void sunfs_log_init(void);
 bool sunfs_free_logfile(unsigned int ino);
 
 inline bool set_sunfs_log_entry_inactive(struct sunfs_log_entry *plog);
+bool insert_inode_log(struct inode *inode, struct sunfs_log_entry *plog);
+bool erase_inode_log(struct inode *inode);
 
 
 struct sunfs_log_info *sunfs_get_logfile(

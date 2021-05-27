@@ -90,6 +90,8 @@ bool Buddysystem_init(void)
         vaddr = (vaddr + SUNFS_PAGESIZE) & (~SUNFS_PAGEMASK);
         BUDDY_SYSTEM_START = vaddr;
     }
+    printk(KERN_DEBUG "buddy system start: 0x%lx\n", BUDDY_SYSTEM_START);
+    printk(KERN_DEBUG "buddy system end: 0x%lx\n", LOGZONE_START);
 
     while (vaddr != __va(LOGZONE_START))
     {
@@ -107,7 +109,7 @@ bool Buddysystem_init(void)
             order--;
         }
 
-        for (; vaddr < __va(LOGZONE_START); vaddr += PAGE_NOW)
+        for (; vaddr + PAGE_NOW <= __va(LOGZONE_START); vaddr += PAGE_NOW)
         {
             struct sunfs_page *p = kmalloc(sizeof(struct sunfs_page), GFP_KERNEL);
             if (p == NULL)

@@ -12,6 +12,7 @@ struct mutex writing;
 atomic_t writer = ATOMIC_INIT(0);
 atomic_t reader = ATOMIC_INIT(0);
 
+// FIXME: re-write this function
 ssize_t sunfs_file_read_mmap(
     struct file *filp,
     char __user *buf,
@@ -28,7 +29,10 @@ ssize_t sunfs_file_read_mmap(
 
     replace_page_fpmd(current->mm, info->fpmd, vaddr);
     ShowPyhsicADDR(vaddr);
-    buffer = (char *)kmalloc(sizeof(char) * (len + 5), GFP_KERNEL);
+    printk(KERN_DEBUG "paddr of 0x1f804ff0\n");
+    ShowPyhsicADDR(0x1f804ff0);
+    
+    /*buffer = (char *)kmalloc(sizeof(char) * (len + 5), GFP_KERNEL);
     if (!buffer)
     {
         printk(KERN_ERR "buffer can not be alloced!\n");
@@ -50,11 +54,11 @@ ssize_t sunfs_file_read_mmap(
         printk(KERN_ERR "error ino is %d\n", ret);
         kfree(buffer);
         return -EFAULT;
-    }
+    }*/
     *ppos += len;
 
 free:
-    kfree(buffer);
+    //kfree(buffer);
     return len;
 }
 
@@ -516,6 +520,7 @@ ssize_t sunfs_file_write(
     loff_t isize = i_size_read(inode);
     loff_t offset = *ppos;
     ssize_t ret = 0;
+    bool testflag;
 
     int startpage = *ppos >> SUNFS_PAGESHIFT;
     int endpage = (*ppos + len - 1) >> SUNFS_PAGESHIFT;
@@ -542,6 +547,14 @@ ssize_t sunfs_file_write(
         printk(KERN_ERR "Can not get sunfs_log_entry!\n");
         ret = -ENOMEM;
         goto free_list;
+    }
+    
+    testflag = insert_inode_log(inode, plog);
+    if (!testflag)
+    {
+        printk(KERN_ERR "Can not insert log entry in inode log list!\n");
+        // FIXME: log is committed here, may be we can try again?
+        return -EFAULT;
     }
 
     //user data is ready
@@ -671,10 +684,15 @@ retry:
 
     // no error, ret should be len
     ret = len;
-
+    set_sunfs_log_entry_inactive(plog);
+    testflag = erase_inode_log(inode);
+    if (!testflag) 
+    {
+        printk(KERN_ERR "Can not erase log entry in inode log list!\n");
+        // FIXME: we already finish this write, how to deal with this error?
+    }
 free_list:
     //free logfile and set log entry inactive
-    set_sunfs_log_entry_inactive(plog);
     sunfs_free_logfile(linfo->ino);
 
 out_writing:

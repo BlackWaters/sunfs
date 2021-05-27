@@ -37,7 +37,8 @@ int main()
     char *buf = (char *)malloc(4096 * 2);
     memset(buf, 0, sizeof(buf));
     //snprintf(buf, 2 * 4096, "This is a test message.");
-    for (int i=0;i<2*4096;i++) buf[i]=(i%26)+'a';
+    for (int i = 0; i < 2 * 4096; i++)
+        buf[i] = (i % 26) + 'a';
     int len = strlen(buf);
     printf("%d\n", len);
     if (lseek(fd, 0, SEEK_SET) == -1)
@@ -53,13 +54,13 @@ int main()
         return 0;
     }
     // read whole message
-    if (lseek(fd,0,SEEK_SET)==-1)
+    if (lseek(fd, 0, SEEK_SET) == -1)
     {
         printf("error!\n");
         printf("%s\n", strerror(errno));
     }
     memset(buf, 0, sizeof(buf));
-    err = read(fd, buf, 2*4096);
+    err = read(fd, buf, 2 * 4096);
     if (err == -1)
     {
         printf("Read file error\n");
@@ -73,23 +74,23 @@ int main()
         printf("lseek error\n");
         return 0;
     }
-    memset(buf,0,sizeof(buf));
-    snprintf(buf,2*4096,"**THIS IS A TEST MESSAGE!**");
-    len=strlen(buf);
-    err= write(fd,buf,len);
-    if (err==-1)
+    memset(buf, 0, sizeof(buf));
+    snprintf(buf, 2 * 4096, "**THIS IS A TEST MESSAGE!**");
+    len = strlen(buf);
+    err = write(fd, buf, len);
+    if (err == -1)
     {
         printf("second write error!\n");
         printf("%s\n", strerror(errno));
     }
     //read
-    if (lseek(fd,0,SEEK_SET)==-1)
+    if (lseek(fd, 0, SEEK_SET) == -1)
     {
         printf("leesk error!\n");
         printf("%s\n", strerror(errno));
     }
     memset(buf, 0, sizeof(buf));
-    err = read(fd, buf, 2*4096);
+    err = read(fd, buf, 2 * 4096);
     if (err == -1)
     {
         printf("Read file error\n");

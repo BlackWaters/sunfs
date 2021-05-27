@@ -5,6 +5,7 @@
 
 struct mutex log_lock;
 struct kmem_cache *sunfs_log_info_cachep;
+const int MAX_INODE_LOG = SUNFS_PAGESIZE / sizeof(struct sunfs_log_entry);
 
 //Must be called with log_lock hold!!!
 static inline void writeback_sb_logtail(struct sunfs_super_block *sb, struct sunfs_log_entry *tail)
@@ -343,4 +344,64 @@ struct sunfs_log_entry *sunfs_get_create_log(unsigned int ino)
 
     mutex_unlock(&log_lock);
     return tail;
+}
+
+/*
+ * Insert log into inode log list
+ * Succeed it returns 1, otherwise 0
+ */
+bool insert_inode_log(struct inode *inode, struct sunfs_log_entry *plog)
+{
+    struct sunfs_inode_info *info = SUNFS_INIFO(inode);
+    if (!info)
+    {
+        printk(KERN_ERR "Can not get sunfs_inode_info!\n");
+        return 0;
+    }
+    mutex_lock(&info->inode_log_lock);
+    if (info->inode_logsize == MAX_INODE_LOG)
+    {
+        // FIXME: log is full, try to free ...
+    }
+    unsigned long *ptail = (unsigned long *)(info->tail * 8 + info->log_page);
+    printk(KERN_DEBUG "insert: ptail is in 0x%lx\n",ptail);
+    *ptail = (unsigned long)plog;
+    info->tail++;
+    if (unlikely(info->tail) >= MAX_INODE_LOG)
+        info->tail %= MAX_INODE_LOG;
+    info->inode_logsize++;
+    mutex_unlock(&info->inode_log_lock);
+    return 1;
+}
+
+/*
+ * always erase inode log from the head
+ * succeed returns 1, otherwise 0
+ */
+bool erase_inode_log(struct inode *inode)
+{
+    struct sunfs_inode_info *info = SUNFS_INIFO(inode);
+    struct sunfs_log_entry *plog;
+    if (!info)
+    {
+        printk(KERN_ERR "Can not get sunfs_inode_info!\n");
+        return 0;
+    }
+    mutex_lock(&info->inode_log_lock);
+    plog = (struct sunfs_log_entry *)(*(unsigned long *)(info->head * 8 + info->log_page));
+    printk(KERN_DEBUG "erase: ptail is in 0x%lx\n",plog);
+    // check plog
+    if (plog->active)
+    {
+        printk(KERN_ERR "This log entry is still active!\n");
+        // something is wrong, return with error and unlock inode_log_lock
+        mutex_unlock(&info->inode_log_lock);
+        return 0;
+    }
+    info->head++;
+    if (unlikely(info->head) >= MAX_INODE_LOG)
+        info->head %= MAX_INODE_LOG;
+    info->inode_logsize--;
+    mutex_unlock(&info->inode_log_lock);
+    return 1;
 }
